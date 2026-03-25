@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VENDROZ-MD • Web Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700;900&family=Rajdhani:wght@300;400;600;700&display=swap" rel="stylesheet" />
+<script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+<style>
+/* ══════════════════════════════════════════════
+   VENDROZ-MD — CYBER NEON DARK DASHBOARD
+   ══════════════════════════════════════════════ */
+
+:root {
+  --bg:        #020408;
+  --bg2:       #050d14;
+  --bg3:       #0a1520;
+  --border:    #0e2a3d;
+  --accent:    #00ffe5;
+  --accent2:   #ff3c6e;
+  --accent3:   #f0b429;
+  --green:     #00ff88;
+  --dim:       #1a3347;
+  --text:      #c8e6f0;
+  --text-mute: #4a7a90;
+  --font-mono: 'Share Tech Mono', monospace;
+  --font-head: 'Orbitron', sans-serif;
+  --font-body: 'Rajdhani', sans-serif;
+  --glow:      0 0 12px #00ffe555, 0 0 30px #00ffe520;
+  --glow-red:  0 0 12px #ff3c6e55, 0 0 30px #ff3c6e20;
+  --glow-gold: 0 0 12px #f0b42955, 0 0 30px #f0b42920;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 15px;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ─── Scanlines overlay ─── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent, transparent 2px,
+    rgba(0,255,229,0.015) 2px, rgba(0,255,229,0.015) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* ─── GRID BACKGROUND ─── */
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(0,255,229,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,255,229,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ═══════ LAYOUT ═══════ */
+#app { position: relative; z-index: 1; display: flex; flex-direction: column; min-height: 100vh; }
+
+/* ─── TOPBAR ─── */
+header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 28px;
+  background: linear-gradient(90deg, #020c14ee 0%, #050d14ee 100%);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+  position: sticky; top: 0; z-index: 100;
+}
+
+.logo {
+  display: flex; align-items: center; gap: 12px;
+}
+
+.logo-icon {
+  width: 36px; height: 36px;
+  border: 2px solid var(--accent);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px;
+  box-shadow: var(--glow);
+  animation: pulse-border 3s ease-in-out infinite;
+}
+
+@keyframes pulse-border {
+  0%, 100% { box-shadow: var(--glow); }
+  50% { box-shadow: 0 0 20px #00ffe588, 0 0 50px #00ffe530; }
+}
+
+.logo-text { font-family: var(--font-head); font-size: 17px; font-weight: 900; letter-spacing: 3px; }
+.logo-text span { color: var(--accent); }
+.logo-sub { font-family: var(--font-mono); font-size: 10px; color: var(--text-mute); letter-spacing: 2px; }
+
+.header-right { display: flex; align-items: center; gap: 18px; }
+.server-status { display: flex; align-items: center; gap: 8px; font-family: var(--font-mono); font-size: 11px; color: var(--text-mute); }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); animation: blink 2s ease-in-out infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+.total-sessions {
+  font-family: var(--font-mono); font-size: 12px;
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--accent);
+}
+
+/* ═══════ MAIN CONTENT ═══════ */
+main { display: flex; flex: 1; gap: 0; }
+
+/* ─── SIDEBAR ─── */
+aside {
+  width: 280px; min-width: 280px;
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  height: calc(100vh - 65px);
+  position: sticky; top: 65px;
+  overflow: hidden;
+}
+
+.sidebar-header {
+  padding: 18px 20px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sidebar-title {
+  font-family: var(--font-head); font-size: 10px; letter-spacing: 3px;
+  color: var(--text-mute); text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+.btn-new-session {
+  width: 100%;
+  padding: 10px;
+  background: linear-gradient(135deg, #00ffe520, #00ffe510);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--accent);
+  font-family: var(--font-head);
+  font-size: 11px;
+  letter-spacing: 2px;
+  cursor: pointer;
+  transition: all .2s;
+  box-shadow: var(--glow);
+}
+.btn-new-session:hover {
+  background: linear-gradient(135deg, #00ffe540, #00ffe520);
+  box-shadow: 0 0 20px #00ffe588;
+  transform: translateY(-1px);
+}
+
+.sessions-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 0;
+}
+
+.sessions-list::-webkit-scrollbar { width: 4px; }
+.sessions-list::-webkit-scrollbar-track { background: transparent; }
+.sessions-list::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 2px; }
+
+.session-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 20px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  transition: all .15s;
+  position: relative;
+}
+
+.session-item:hover { background: rgba(0,255,229,0.04); border-left-color: var(--accent); }
+.session-item.active { background: rgba(0,255,229,0.07); border-left-color: var(--accent); }
+
+.session-avatar {
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700;
+  text-transform: uppercase;
+  font-family: var(--font-head);
+  flex-shrink: 0;
+}
+
+.session-info { flex: 1; min-width: 0; }
+.session-name { font-family: var(--font-mono); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.session-meta { font-size: 11px; color: var(--text-mute); font-family: var(--font-mono); }
+
+.session-status-badge {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.badge-connected { background: var(--green); box-shadow: 0 0 6px var(--green); animation: blink 2.5s ease-in-out infinite; }
+.badge-connecting, .badge-reconnecting { background: var(--accent3); box-shadow: 0 0 6px var(--accent3); animation: blink .8s ease-in-out infinite; }
+.badge-disconnected, .badge-logged_out, .badge-error { background: var(--accent2); }
+.badge-awaiting_phone { background: var(--accent); animation: blink .5s ease-in-out infinite; }
+
+.no-sessions {
+  text-align: center; padding: 40px 20px;
+  color: var(--text-mute); font-family: var(--font-mono); font-size: 12px;
+}
+.no-sessions .icon { font-size: 32px; margin-bottom: 12px; }
+
+/* ═══════ DASHBOARD AREA ═══════ */
+.dashboard {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex; flex-direction: column; gap: 20px;
+}
+
+.dashboard::-webkit-scrollbar { width: 4px; }
+.dashboard::-webkit-scrollbar-track { background: transparent; }
+.dashboard::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 2px; }
+
+/* ─── WELCOME SCREEN ─── */
+.welcome {
+  flex: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  text-align: center; gap: 20px;
+}
+.welcome-title { font-family: var(--font-head); font-size: 36px; font-weight: 900; letter-spacing: 6px; color: var(--accent); text-shadow: var(--glow); }
+.welcome-sub { font-family: var(--font-mono); font-size: 13px; color: var(--text-mute); letter-spacing: 2px; }
+.welcome-hint { font-family: var(--font-body); font-size: 14px; color: var(--text); }
+.welcome-arrow { font-size: 28px; animation: bounce 1.5s ease-in-out infinite; }
+@keyframes bounce { 0%,100%{transform:translateX(0)} 50%{transform:translateX(-8px)} }
+
+/* ─── SESSION VIEW ─── */
+.session-header-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 22px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.session-header-info { display: flex; align-items: center; gap: 14px; }
+.session-big-name { font-family: var(--font-head); font-size: 20px; letter-spacing: 2px; }
+.session-phone-tag { font-family: var(--font-mono); font-size: 12px; color: var(--accent); background: rgba(0,255,229,.08); padding: 3px 10px; border-radius: 20px; border: 1px solid rgba(0,255,229,.2); }
+.session-status-text { font-family: var(--font-mono); font-size: 12px; padding: 4px 12px; border-radius: 4px; }
+.status-connected { color: var(--green); background: rgba(0,255,136,.1); border: 1px solid rgba(0,255,136,.3); }
+.status-connecting, .status-reconnecting { color: var(--accent3); background: rgba(240,180,41,.1); border: 1px solid rgba(240,180,41,.3); }
+.status-disconnected, .status-logged_out, .status-error { color: var(--accent2); background: rgba(255,60,110,.1); border: 1px solid rgba(255,60,110,.3); }
+.status-awaiting_phone { color: var(--accent); background: rgba(0,255,229,.1); border: 1px solid rgba(0,255,229,.3); }
+
+.session-actions { display: flex; gap: 10px; }
+
+.btn {
+  padding: 8px 16px; border-radius: 6px; font-family: var(--font-mono);
+  font-size: 11px; letter-spacing: 1px; cursor: pointer;
+  border: 1px solid; transition: all .2s; font-weight: 600;
+}
+.btn-danger { background: rgba(255,60,110,.1); border-color: var(--accent2); color: var(--accent2); }
+.btn-danger:hover { background: rgba(255,60,110,.25); box-shadow: var(--glow-red); }
+.btn-primary { background: rgba(0,255,229,.1); border-color: var(--accent); color: var(--accent); }
+.btn-primary:hover { background: rgba(0,255,229,.22); box-shadow: var(--glow); }
+
+/* ─── STATS GRID ─── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.stat-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px;
+  position: relative;
+  overflow: hidden;
+  transition: border-color .2s;
+}
+.stat-card::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--card-accent, var(--accent)), transparent);
+}
+.stat-card:hover { border-color: var(--card-accent, var(--accent)); }
+.stat-card:nth-child(2) { --card-accent: var(--accent3); }
+.stat-card:nth-child(3) { --card-accent: var(--green); }
+.stat-card:nth-child(4) { --card-accent: var(--accent2); }
+
+.stat-icon { font-size: 22px; margin-bottom: 10px; }
+.stat-value { font-family: var(--font-head); font-size: 28px; font-weight: 900; color: var(--card-accent, var(--accent)); }
+.stat-label { font-family: var(--font-mono); font-size: 10px; color: var(--text-mute); letter-spacing: 2px; margin-top: 4px; }
+
+/* ─── PAIRING PANEL ─── */
+.pair-panel {
+  background: var(--bg2);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+  padding: 24px;
+  box-shadow: var(--glow);
+  animation: glow-in .5s ease-out;
+}
+@keyframes glow-in { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+
+.pair-title { font-family: var(--font-head); font-size: 14px; letter-spacing: 2px; color: var(--accent); margin-bottom: 16px; }
+.pair-subtitle { font-family: var(--font-body); font-size: 14px; color: var(--text-mute); margin-bottom: 20px; line-height: 1.6; }
+
+.pair-steps { display: flex; gap: 24px; margin-bottom: 22px; }
+.pair-step { display: flex; align-items: flex-start; gap: 10px; flex: 1; }
+.step-num { width: 24px; height: 24px; border-radius: 50%; background: rgba(0,255,229,.15); border: 1px solid var(--accent); color: var(--accent); font-family: var(--font-head); font-size: 11px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.step-text { font-family: var(--font-body); font-size: 13px; color: var(--text); line-height: 1.5; }
+
+.pair-input-row { display: flex; gap: 10px; }
+.pair-input {
+  flex: 1; background: var(--bg3); border: 1px solid var(--dim);
+  border-radius: 6px; padding: 10px 14px;
+  color: var(--text); font-family: var(--font-mono); font-size: 14px;
+  outline: none; transition: border-color .2s;
+}
+.pair-input:focus { border-color: var(--accent); box-shadow: var(--glow); }
+.pair-input::placeholder { color: var(--text-mute); }
+
+.code-display {
+  margin-top: 20px;
+  background: var(--bg3);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 18px 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  box-shadow: var(--glow);
+}
+.code-label { font-family: var(--font-mono); font-size: 11px; color: var(--text-mute); letter-spacing: 2px; }
+.code-value { font-family: var(--font-head); font-size: 26px; letter-spacing: 6px; color: var(--accent); text-shadow: var(--glow); animation: code-flash .5s ease-out; }
+@keyframes code-flash { from{letter-spacing:2px;opacity:.5} to{letter-spacing:6px;opacity:1} }
+.code-copy { padding: 6px 14px; background: rgba(0,255,229,.1); border: 1px solid var(--accent); color: var(--accent); border-radius: 4px; cursor: pointer; font-family: var(--font-mono); font-size: 11px; transition: all .2s; }
+.code-copy:hover { background: rgba(0,255,229,.25); }
+
+/* ─── LOGS PANEL ─── */
+.logs-panel {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  flex: 1;
+}
+
+.logs-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(0,0,0,.3);
+}
+.logs-title { font-family: var(--font-head); font-size: 11px; letter-spacing: 2px; color: var(--text-mute); }
+.logs-controls { display: flex; gap: 8px; }
+.btn-sm { padding: 4px 10px; font-size: 10px; border-radius: 4px; border: 1px solid var(--border); background: transparent; color: var(--text-mute); cursor: pointer; font-family: var(--font-mono); transition: all .15s; }
+.btn-sm:hover { border-color: var(--accent); color: var(--accent); }
+
+.logs-body {
+  height: 320px; overflow-y: auto;
+  padding: 10px 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+.logs-body::-webkit-scrollbar { width: 4px; }
+.logs-body::-webkit-scrollbar-track { background: transparent; }
+.logs-body::-webkit-scrollbar-thumb { background: var(--dim); border-radius: 2px; }
+
+.log-entry {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 3px 18px;
+  animation: log-slide .2s ease-out;
+  border-bottom: 1px solid rgba(14,42,61,.5);
+}
+@keyframes log-slide { from{opacity:0;transform:translateX(-6px)} to{opacity:1;transform:translateX(0)} }
+.log-entry:hover { background: rgba(0,255,229,.03); }
+
+.log-time { color: var(--text-mute); flex-shrink: 0; font-size: 11px; }
+.log-msg { color: var(--text); flex: 1; word-break: break-word; }
+.log-msg.error { color: var(--accent2); }
+.log-msg.success { color: var(--green); }
+.log-msg.warn { color: var(--accent3); }
+.log-msg.info { color: var(--accent); }
+
+.logs-empty { text-align: center; padding: 40px; color: var(--text-mute); font-size: 12px; }
+
+/* ─── MODAL ─── */
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(2,4,8,.85);
+  backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; pointer-events: none; transition: opacity .2s;
+}
+.modal-backdrop.open { opacity: 1; pointer-events: all; }
+
+.modal {
+  background: var(--bg2);
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  padding: 32px;
+  width: 420px;
+  box-shadow: var(--glow), 0 20px 60px rgba(0,0,0,.8);
+  transform: translateY(20px);
+  transition: transform .2s;
+}
+.modal-backdrop.open .modal { transform: translateY(0); }
+
+.modal-title { font-family: var(--font-head); font-size: 15px; letter-spacing: 2px; color: var(--accent); margin-bottom: 8px; }
+.modal-sub { font-family: var(--font-body); font-size: 13px; color: var(--text-mute); margin-bottom: 24px; }
+
+.modal-field { margin-bottom: 18px; }
+.modal-label { font-family: var(--font-mono); font-size: 11px; color: var(--text-mute); letter-spacing: 2px; margin-bottom: 8px; display: block; }
+.modal-input {
+  width: 100%; background: var(--bg3); border: 1px solid var(--dim);
+  border-radius: 6px; padding: 10px 14px;
+  color: var(--text); font-family: var(--font-mono); font-size: 14px;
+  outline: none; transition: border-color .2s;
+}
+.modal-input:focus { border-color: var(--accent); box-shadow: var(--glow); }
+
+.modal-actions { display: flex; gap: 10px; justify-content: flex-end; }
+.btn-cancel { background: transparent; border: 1px solid var(--border); color: var(--text-mute); }
+.btn-cancel:hover { border-color: var(--accent2); color: var(--accent2); }
+
+/* ─── TOAST ─── */
+.toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 2000; display: flex; flex-direction: column; gap: 8px; }
+.toast {
+  padding: 12px 18px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  border: 1px solid;
+  animation: toast-in .3s ease-out;
+  min-width: 220px;
+}
+@keyframes toast-in { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
+.toast-success { background: rgba(0,255,136,.1); border-color: var(--green); color: var(--green); }
+.toast-error { background: rgba(255,60,110,.1); border-color: var(--accent2); color: var(--accent2); }
+.toast-info { background: rgba(0,255,229,.1); border-color: var(--accent); color: var(--accent); }
+
+/* ─── RESPONSIVE ─── */
+@media (max-width: 900px) {
+  aside { width: 220px; min-width: 220px; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .pair-steps { flex-direction: column; }
+}
+@media (max-width: 640px) {
+  main { flex-direction: column; }
+  aside { width: 100%; height: auto; position: static; }
+  .sessions-list { max-height: 200px; }
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- TOPBAR -->
+  <header>
+    <div class="logo">
+      <div class="logo-icon">🌌</div>
+      <div>
+        <div class="logo-text">VENDROZ<span>-MD</span></div>
+        <div class="logo-sub">WEB DASHBOARD v2.0</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <div class="server-status">
+        <div class="status-dot"></div>
+        <span>SERVER ONLINE</span>
+      </div>
+      <div class="total-sessions" id="totalBadge">0 SESSION(S)</div>
+    </div>
+  </header>
+
+  <main>
+    <!-- SIDEBAR -->
+    <aside>
+      <div class="sidebar-header">
+        <div class="sidebar-title">// Sessions actives</div>
+        <button class="btn-new-session" onclick="openNewSessionModal()">+ NOUVELLE SESSION</button>
+      </div>
+      <div class="sessions-list" id="sessionsList">
+        <div class="no-sessions">
+          <div class="icon">🤖</div>
+          Aucune session.<br>Créez-en une !
+        </div>
+      </div>
+    </aside>
+
+    <!-- DASHBOARD -->
+    <div class="dashboard" id="dashboard">
+      <div class="welcome">
+        <div class="welcome-arrow">◀</div>
+        <div class="welcome-title">VENDROZ-MD</div>
+        <div class="welcome-sub">// MULTI-SESSION WEB MANAGER</div>
+        <div class="welcome-hint">Sélectionnez une session ou créez-en une nouvelle</div>
+      </div>
+    </div>
+  </main>
+
+</div>
+
+<!-- MODAL NOUVELLE SESSION -->
+<div class="modal-backdrop" id="newSessionModal">
+  <div class="modal">
+    <div class="modal-title">+ NOUVELLE SESSION</div>
+    <div class="modal-sub">Créez un identifiant unique pour votre bot WhatsApp.</div>
+    <div class="modal-field">
+      <label class="modal-label">IDENTIFIANT DE SESSION</label>
+      <input class="modal-input" id="newUserId" type="text" placeholder="ex: monbot1, user_alpha..." maxlength="30" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" onclick="closeNewSessionModal()">ANNULER</button>
+      <button class="btn btn-primary" onclick="createSession()">CRÉER</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ══════════════════════════════════════════════
+//  VENDROZ-MD DASHBOARD — CLIENT JS
+// ══════════════════════════════════════════════
+
+const socket = io();
+let sessions = {};
+let activeUserId = null;
+
+// ─── SOCKET EVENTS ───────────────────────────
+
+socket.on("connect", () => {
+  refreshSessions();
+});
+
+socket.on("status", ({ userId, status, phone }) => {
+  if (!sessions[userId]) sessions[userId] = {};
+  sessions[userId].status = status;
+  if (phone) sessions[userId].phone = phone;
+  renderSidebar();
+  if (activeUserId === userId) renderSessionView(userId);
+});
+
+socket.on("stats", ({ userId, stats }) => {
+  if (!sessions[userId]) sessions[userId] = {};
+  sessions[userId].stats = stats;
+  if (activeUserId === userId) updateStats(userId);
+});
+
+socket.on("log", ({ userId, time, msg }) => {
+  if (activeUserId === userId) appendLog(time, msg);
+});
+
+socket.on("log_history", ({ userId, logs }) => {
+  if (activeUserId === userId) {
+    const body = document.getElementById("logsBody");
+    if (!body) return;
+    body.innerHTML = "";
+    logs.forEach(({ time, msg }) => appendLog(time, msg));
+    body.scrollTop = body.scrollHeight;
+  }
+});
+
+socket.on("pairing_code", ({ userId, code }) => {
+  if (activeUserId === userId) {
+    const display = document.getElementById("pairingCodeDisplay");
+    const val = document.getElementById("pairingCodeValue");
+    if (display && val) {
+      val.textContent = code;
+      display.style.display = "flex";
+    }
+  }
+});
+
+// ─── API CALLS ───────────────────────────────
+
+async function api(method, path, body) {
+  const opts = { method, headers: { "Content-Type": "application/json" } };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(path, opts);
+  return res.json();
+}
+
+async function refreshSessions() {
+  sessions = await api("GET", "/api/sessions");
+  renderSidebar();
+  if (activeUserId && sessions[activeUserId]) {
+    renderSessionView(activeUserId);
+  }
+  document.getElementById("totalBadge").textContent = `${Object.keys(sessions).length} SESSION(S)`;
+}
+
+async function createSession() {
+  const userId = document.getElementById("newUserId").value.trim();
+  if (!userId) return toast("Saisissez un identifiant.", "error");
+  if (!/^[a-zA-Z0-9_-]{3,30}$/.test(userId)) return toast("Identifiant invalide (3-30 chars).", "error");
+
+  closeNewSessionModal();
+  const result = await api("POST", "/api/sessions", { userId });
+  if (result.error) return toast(result.error, "error");
+
+  toast(`Session ${userId} créée !`, "success");
+  sessions[userId] = { status: "connecting", stats: {} };
+  renderSidebar();
+  selectSession(userId);
+  socket.emit("join_session", userId);
+}
+
+async function deleteSessionConfirm(userId) {
+  if (!confirm(`Supprimer la session "${userId}" ?`)) return;
+  await api("DELETE", `/api/sessions/${userId}`);
+  toast(`Session ${userId} supprimée.`, "info");
+  delete sessions[userId];
+  if (activeUserId === userId) {
+    activeUserId = null;
+    renderDashboardWelcome();
+  }
+  renderSidebar();
+}
+
+async function sendPairingCode() {
+  const phone = document.getElementById("pairingPhone")?.value.trim();
+  if (!phone) return toast("Entrez votre numéro.", "error");
+  toast("Envoi du code...", "info");
+  const result = await api("POST", `/api/sessions/${activeUserId}/pair`, { phone });
+  if (result.error) return toast(result.error, "error");
+  toast("Code envoyé ! Vérifiez WhatsApp.", "success");
+}
+
+// ─── RENDER ──────────────────────────────────
+
+function renderSidebar() {
+  const list = document.getElementById("sessionsList");
+  const keys = Object.keys(sessions);
+  document.getElementById("totalBadge").textContent = `${keys.length} SESSION(S)`;
+
+  if (keys.length === 0) {
+    list.innerHTML = `<div class="no-sessions"><div class="icon">🤖</div>Aucune session.<br>Créez-en une !</div>`;
+    return;
+  }
+
+  list.innerHTML = keys.map(uid => {
+    const s = sessions[uid];
+    const isActive = uid === activeUserId ? "active" : "";
+    const initials = uid.substring(0, 2).toUpperCase();
+    const phone = s.phone ? `+${s.phone}` : s.status;
+    return `
+      <div class="session-item ${isActive}" onclick="selectSession('${uid}')">
+        <div class="session-avatar" style="color:${colorForId(uid)};border-color:${colorForId(uid)}20">${initials}</div>
+        <div class="session-info">
+          <div class="session-name">${uid}</div>
+          <div class="session-meta">${phone}</div>
+        </div>
+        <div class="session-status-badge badge-${s.status || 'disconnected'}"></div>
+      </div>`;
+  }).join("");
+}
+
+function selectSession(userId) {
+  if (activeUserId) socket.emit("leave_session", activeUserId);
+  activeUserId = userId;
+  socket.emit("join_session", userId);
+  renderSidebar();
+  renderSessionView(userId);
+}
+
+function renderSessionView(userId) {
+  const s = sessions[userId] || {};
+  const stats = s.stats || {};
+  const uptime = stats.uptime ? formatUptime(Date.now() - stats.uptime) : "—";
+  const showPairing = s.status === "awaiting_phone";
+  const showCode = !!sessions[userId]?.pairingCode;
+
+  const dash = document.getElementById("dashboard");
+  dash.innerHTML = `
+    <!-- SESSION HEADER -->
+    <div class="session-header-bar">
+      <div class="session-header-info">
+        <div class="session-big-name">${userId.toUpperCase()}</div>
+        ${s.phone ? `<div class="session-phone-tag">+${s.phone}</div>` : ""}
+        <div class="session-status-text status-${s.status || 'disconnected'}">${statusLabel(s.status)}</div>
+      </div>
+      <div class="session-actions">
+        <button class="btn btn-danger" onclick="deleteSessionConfirm('${userId}')">🗑 SUPPRIMER</button>
+      </div>
+    </div>
+
+    <!-- STATS -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon">💬</div>
+        <div class="stat-value" id="statMessages">${stats.messages || 0}</div>
+        <div class="stat-label">MESSAGES REÇUS</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">⚡</div>
+        <div class="stat-value" id="statCommands">${stats.commands || 0}</div>
+        <div class="stat-label">COMMANDES</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">👥</div>
+        <div class="stat-value" id="statGroups">${stats.groups || 0}</div>
+        <div class="stat-label">GROUPES</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">⏱️</div>
+        <div class="stat-value" id="statUptime" style="font-size:18px">${uptime}</div>
+        <div class="stat-label">UPTIME</div>
+      </div>
+    </div>
+
+    <!-- PAIRING PANEL -->
+    ${showPairing || !s.phone ? `
+    <div class="pair-panel" id="pairPanel">
+      <div class="pair-title">🔑 CONNEXION PAR PAIRING CODE</div>
+      <div class="pair-subtitle">Entrez votre numéro WhatsApp pour recevoir le code de pairage.</div>
+      <div class="pair-steps">
+        <div class="pair-step"><div class="step-num">1</div><div class="step-text">Ouvrez WhatsApp → <strong>Appareils connectés</strong></div></div>
+        <div class="pair-step"><div class="step-num">2</div><div class="step-text">Appuyez sur <strong>Connecter un appareil</strong></div></div>
+        <div class="pair-step"><div class="step-num">3</div><div class="step-text">Saisissez le code ci-dessous quand affiché</div></div>
+      </div>
+      <div class="pair-input-row">
+        <input class="pair-input" id="pairingPhone" type="tel" placeholder="22656xxxxxx (sans +)" />
+        <button class="btn btn-primary" onclick="sendPairingCode()">ENVOYER</button>
+      </div>
+      <div class="code-display" id="pairingCodeDisplay" style="display:${showCode?'flex':'none'}">
+        <div>
+          <div class="code-label">CODE DE PAIRAGE</div>
+          <div class="code-value" id="pairingCodeValue">${s.pairingCode || "——"}</div>
+        </div>
+        <button class="code-copy" onclick="copyCode()">COPIER</button>
+      </div>
+    </div>` : ""}
+
+    <!-- LOGS -->
+    <div class="logs-panel">
+      <div class="logs-header">
+        <div class="logs-title">// LOGS EN TEMPS RÉEL</div>
+        <div class="logs-controls">
+          <button class="btn-sm" onclick="clearLogs()">EFFACER</button>
+          <button class="btn-sm" onclick="scrollLogsBottom()">↓ BAS</button>
+        </div>
+      </div>
+      <div class="logs-body" id="logsBody">
+        <div class="logs-empty">En attente de logs...</div>
+      </div>
+    </div>
+  `;
+}
+
+function renderDashboardWelcome() {
+  document.getElementById("dashboard").innerHTML = `
+    <div class="welcome">
+      <div class="welcome-arrow">◀</div>
+      <div class="welcome-title">VENDROZ-MD</div>
+      <div class="welcome-sub">// MULTI-SESSION WEB MANAGER</div>
+      <div class="welcome-hint">Sélectionnez une session ou créez-en une nouvelle</div>
+    </div>`;
+}
+
+function updateStats(userId) {
+  const s = sessions[userId];
+  if (!s?.stats) return;
+  const { messages, commands, groups, uptime } = s.stats;
+  const el = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val; };
+  el("statMessages", messages || 0);
+  el("statCommands", commands || 0);
+  el("statGroups", groups || 0);
+  el("statUptime", uptime ? formatUptime(Date.now() - uptime) : "—");
+}
+
+function appendLog(time, msg) {
+  const body = document.getElementById("logsBody");
+  if (!body) return;
+
+  const empty = body.querySelector(".logs-empty");
+  if (empty) empty.remove();
+
+  const div = document.createElement("div");
+  div.className = "log-entry";
+
+  const t = new Date(time).toLocaleTimeString("fr-FR", { hour12: false });
+
+  let cls = "";
+  if (/✅|connecté|succès/i.test(msg)) cls = "success";
+  else if (/❌|erreur|error/i.test(msg)) cls = "error";
+  else if (/⚠️|warn/i.test(msg)) cls = "warn";
+  else if (/🔑|📨|🚀/i.test(msg)) cls = "info";
+
+  div.innerHTML = `<span class="log-time">${t}</span><span class="log-msg ${cls}">${escHtml(msg)}</span>`;
+  body.appendChild(div);
+
+  const isBottom = body.scrollTop + body.clientHeight >= body.scrollHeight - 50;
+  if (isBottom) body.scrollTop = body.scrollHeight;
+}
+
+// ─── HELPERS ─────────────────────────────────
+
+function statusLabel(s) {
+  const map = {
+    connected: "✅ CONNECTÉ",
+    connecting: "⏳ CONNEXION...",
+    awaiting_phone: "📱 EN ATTENTE",
+    reconnecting: "🔄 RECONNEXION...",
+    disconnected: "🔴 DÉCONNECTÉ",
+    logged_out: "⛔ SESSION EXPIRÉE",
+    error: "❌ ERREUR",
+  };
+  return map[s] || s?.toUpperCase() || "INCONNU";
+}
+
+function colorForId(id) {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = id.charCodeAt(i) + ((hash << 5) - hash);
+  const colors = ["#00ffe5","#ff3c6e","#f0b429","#00ff88","#bf5fff","#ff8c00","#00b4ff"];
+  return colors[Math.abs(hash) % colors.length];
+}
+
+function formatUptime(ms) {
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ${m % 60}m`;
+  return `${Math.floor(h / 24)}j ${h % 24}h`;
+}
+
+function escHtml(t) {
+  return t.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+function copyCode() {
+  const val = document.getElementById("pairingCodeValue")?.textContent;
+  if (val) navigator.clipboard.writeText(val).then(() => toast("Code copié !", "success"));
+}
+
+function clearLogs() {
+  const body = document.getElementById("logsBody");
+  if (body) body.innerHTML = `<div class="logs-empty">Logs effacés.</div>`;
+}
+
+function scrollLogsBottom() {
+  const body = document.getElementById("logsBody");
+  if (body) body.scrollTop = body.scrollHeight;
+}
+
+function openNewSessionModal() {
+  document.getElementById("newSessionModal").classList.add("open");
+  setTimeout(() => document.getElementById("newUserId").focus(), 100);
+}
+
+function closeNewSessionModal() {
+  document.getElementById("newSessionModal").classList.remove("open");
+  document.getElementById("newUserId").value = "";
+}
+
+document.getElementById("newSessionModal").addEventListener("click", function(e) {
+  if (e.target === this) closeNewSessionModal();
+});
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") closeNewSessionModal();
+  if (e.key === "Enter" && document.getElementById("newSessionModal").classList.contains("open")) createSession();
+});
+
+let toastTimer;
+function toast(msg, type = "info") {
+  const container = document.getElementById("toastContainer");
+  const el = document.createElement("div");
+  el.className = `toast toast-${type}`;
+  el.textContent = msg;
+  container.appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+// Uptime auto-refresh
+setInterval(() => {
+  if (activeUserId && sessions[activeUserId]) updateStats(activeUserId);
+}, 5000);
+
+// Init
+refreshSessions();
+</script>
+</body>
+</html>
